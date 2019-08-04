@@ -3,23 +3,21 @@
     <table>
       <tr>
         <td>
-          <button v-on:click="stopStart">start</button>
+          <button v-on:click="stopStartTracking">start tracking</button>
         </td>
         <td>
-          <vue-detect-faces :invisible="invisible" :start="startCamera" @faceDetected="onFaceDetected"></vue-detect-faces>
+          <vue-track-faces :start="startTracking" @faceDetected="onFaceDetected"></vue-track-faces>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <button v-on:click="stopStartDetecting">start detecting</button>
+        </td>
+        <td>
+          <vue-detect-faces :invisible="invisible" :start="startDetecting" @faceDetected="onFaceDetected"></vue-detect-faces>
         </td>
       </tr>
     </table>
-<!--     <div>
-      <div
-        v-for="item in allFaces"
-      >
-        <img
-          :src="item"
-        />
-      </div>
-
-    </div> -->
     <div class="amplify-album">
       <div 
         class="amplify-album-container"
@@ -37,28 +35,33 @@
 </template>
 
 <script>
-// import VueDetectFaces from './components/VueDetectFaces'
+import VueTrackFaces from './components/VueTrackFaces'
 import VueDetectFaces from './components/VueDetectFaces'
 
 export default {
   name: 'App',
   data () {
     return {
-      startCamera: false,
+      startTracking: false,
+      startDetecting: false,
       allFaces: [],
-      invisible: true
+      invisible: false
     }
   },
   components: {
-    VueDetectFaces
+    VueDetectFaces,
+    VueTrackFaces
   },
   methods: {
-    stopStart () {
-      this.startCamera = !this.startCamera
+    stopStartTracking () {
+      this.startTracking = !this.startTracking
+    },
+    stopStartDetecting () {
+      this.startDetecting = !this.startDetecting
     },
     onFaceDetected (val) {
       // console.log(val)
-      this.allFaces.push(val)
+      // this.allFaces.push(val)
     }
   }
 }

@@ -24,11 +24,11 @@ export default {
   props: {
     width: {
       type: [Number, String],
-      default: '100%'
+      default: 640
     },
     height: {
       type: [Number, String],
-      default: 500
+      default: 480
     },
     start: {
       type: Boolean,
@@ -95,8 +95,8 @@ export default {
     async startCamera () {
       let constraints = { 
         video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
+          width: { ideal: this.width },
+          height: { ideal: this.height },
           facingMode: this.facingMode
         }, 
         audio: false
@@ -141,19 +141,40 @@ export default {
     },
     async startDetector() {
 
-      const result = await faceapi.detectSingleFace(this.$refs.video, new faceapi.TinyFaceDetectorOptions({
+      const result = await faceapi.detectAllFaces(this.$refs.video, new faceapi.TinyFaceDetectorOptions({
         inputSize: 128,
         scoreThreshold: 0.5
       }))
-      
-      if (result) {
-        this.drawFaceBox(result) 
-      }
-      
 
+      // console.log('result', result)
+
+      if (result.length === 0) {
+        // console.log(`${result.length} faces tracked`)
+        this.clearFaceBox()
+        
+      } else {
+
+        if (result.length > 1) {
+          console.log(`${result.length} faces tracked`)
+        }
+
+        result.filter(face => {
+          // console.log(face)
+          // filter by face size
+          // return !(face.width <= this.$refs.video.videoWidth / 5 || face.height <= this.$refs.video.videoHeight / 5)
+          return true
+        }).map(this.drawFaceBox)
+      }      
+    
       setTimeout(() => {
         this.startDetector()
-      }, 500)
+      })
+
+    },
+    clearFaceBox() {
+      const context2D = this.$refs.canvas.getContext('2d')
+
+      context2D.clearRect(0, 0, this.$refs.canvas.width, this.$refs.canvas.height)
 
     },
     drawFaceBox(result) {
@@ -177,7 +198,6 @@ export default {
       newCanvas.height = result.box.height
 
       const context2D = newCanvas.getContext('2d')
-      // context2D.drawImage(this.$refs.video, result.box.x, result.box.y, result.box.width, result.box.height)
 
       context2D.drawImage(this.$refs.video, 
         result.box.x, 
