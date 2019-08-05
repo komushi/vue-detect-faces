@@ -138,13 +138,18 @@ export default {
       console.log(faceapi.nets)
 
       await faceapi.nets.tinyFaceDetector.load('/static/models')
+      await faceapi.nets.faceLandmark68Net.load('/static/models')
+      await faceapi.nets.faceRecognitionNet.load('/static/models')
     },
     async startDetector() {
 
-      const result = await faceapi.detectAllFaces(this.$refs.video, new faceapi.TinyFaceDetectorOptions({
-        inputSize: 128,
-        scoreThreshold: 0.5
-      }))
+      const result = await faceapi
+        .detectAllFaces(this.$refs.video, new faceapi.TinyFaceDetectorOptions({
+          inputSize: 128,
+          scoreThreshold: 0.5
+        }))
+        .withFaceLandmarks()
+        .withFaceDescriptors()
 
       // console.log('result', result)
 
@@ -156,14 +161,12 @@ export default {
 
         if (result.length > 1) {
           console.log(`${result.length} faces tracked`)
+          console.log('result', JSON.stringify(result))
         }
 
-        result.filter(face => {
-          // console.log(face)
-          // filter by face size
-          // return !(face.width <= this.$refs.video.videoWidth / 5 || face.height <= this.$refs.video.videoHeight / 5)
-          return true
-        }).map(this.drawFaceBox)
+        result
+          .map(this.drawFaceBox)
+          .map(this.captureFace)
       }      
     
       setTimeout(() => {
@@ -177,38 +180,38 @@ export default {
       context2D.clearRect(0, 0, this.$refs.canvas.width, this.$refs.canvas.height)
 
     },
-    drawFaceBox(result) {
+    drawFaceBox(face) {
 
       const dims = faceapi.matchDimensions(this.$refs.canvas, this.$refs.video, true)
 
-      const resized = faceapi.resizeResults(result, dims)
+      const resized = faceapi.resizeResults(face, dims)
 
       if (!this.invisible) {
         faceapi.draw.drawDetections(this.$refs.canvas, resized)
       }
 
-      this.captureFace(resized)
+      return resized
     },
-    captureFace(result) {
+    captureFace(face) {
 
 
       const newCanvas = document.createElement("canvas")
 
-      newCanvas.width = result.box.width
-      newCanvas.height = result.box.height
+      newCanvas.width = face.detection.box.width
+      newCanvas.height = face.detection.box.height
 
       const context2D = newCanvas.getContext('2d')
 
       context2D.drawImage(this.$refs.video, 
-        result.box.x, 
-        result.box.y, 
-        result.box.width, 
-        result.box.height,
-        0,0,result.box.width,result.box.height)
+        face.detection.box.x, 
+        face.detection.box.y, 
+        face.detection.box.width, 
+        face.detection.box.height,
+        0,0,face.detection.box.width,face.detection.box.height)
 
       const base64Img = newCanvas.toDataURL("image/jpeg")
 
-      this.allFaces.push(base64Img)
+      // this.allFaces.push(base64Img)
       this.newFace = base64Img
 
       this.$emit('faceDetected', base64Img)

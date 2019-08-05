@@ -1,6 +1,6 @@
 {
   "name": "vue-detect-faces",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Use facea-api.js to detect faces and export to parent vue component",
   "author": "komushi <komushi@gmail.com>",
   "main": "dist/lib/vue-detect-faces.min.js",
