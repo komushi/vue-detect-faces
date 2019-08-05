@@ -1,7 +1,17 @@
 <template>
   <div>
     <div style="position: relative">
-      <video :hidden="invisible" id="inputVideo" ref="video" :width="width" :height="height" :src="source"></video>
+      <video  
+        id="inputVideo" 
+        ref="video" 
+        :width="width" 
+        :height="height" 
+        :src="source"
+        :hidden="invisible"
+        :faceDetectionSize="faceDetectionSize"
+        :faceDetectionConfidence="faceDetectionConfidence"
+        :faceMatchDistance="faceMatchDistance">
+      </video>
       <canvas id="overlay" ref="canvas" />
     </div>
   </div>
@@ -18,7 +28,8 @@ export default {
       stream: null,
       allFaces: [],
       newFace: null,
-
+      faceDescriptions: [],
+      faceMatcher: null
     }
   },
   props: {
@@ -30,7 +41,11 @@ export default {
       type: [Number, String],
       default: 480
     },
-    start: {
+    openCamera: {
+      type: Boolean,
+      default: true
+    },
+    openDetector: {
       type: Boolean,
       default: true
     },
@@ -40,23 +55,46 @@ export default {
     },
     invisible: {
       type: Boolean,
-      default: true      
-    }
+      default: false      
+    },
+    faceDetectionConfidence: {
+      type: Number,
+      default: 0.65
+    },
+    faceMatchDistance: {
+      type: Number,
+      default: 0.65      
+    },
+    faceDetectionSize: {
+      type: Number,
+      default: 8    
+    },
+    
   },
   mounted () {
     this.setupCamera()
+
+    this.setupDetector()
   },
   watch: {
-    start: {
-      handler: function (newValue, oldValue) {
+    openCamera: {
+      handler: async function (newValue, oldValue) {
         console.log(newValue)
         if (newValue) {
-          this.startCamera()
+          await this.startCamera()
         } else {
           this.stopCamera()
         }
       }
-    }
+    },
+    openDetector: {
+      handler: async function (newValue, oldValue) {
+        console.log(newValue)
+        if (newValue) {
+          await this.startDetector()
+        }
+      }
+    },
   },
   methods: {
 
@@ -113,10 +151,6 @@ export default {
       }
 
       await this.$refs.video.play()
-
-      await this.setupDetector()
-
-      await this.startDetector()
     },
     stopCamera () {
       if (this.$refs.video) {
@@ -137,21 +171,30 @@ export default {
 
       console.log(faceapi.nets)
 
+      // await faceapi.nets.ssdMobilenetv1.load('/static/models')
       await faceapi.nets.tinyFaceDetector.load('/static/models')
       await faceapi.nets.faceLandmark68Net.load('/static/models')
       await faceapi.nets.faceRecognitionNet.load('/static/models')
     },
     async startDetector() {
 
+      // const result = await faceapi
+      //   .detectAllFaces(this.$refs.video)
+      //   .withFaceLandmarks()
+      //   .withFaceDescriptors()
+
+      if (!this.openDetector) {
+        return
+      }
+
       const result = await faceapi
         .detectAllFaces(this.$refs.video, new faceapi.TinyFaceDetectorOptions({
-          inputSize: 128,
-          scoreThreshold: 0.5
+          inputSize: this.faceDetectionSize * 32,
+          scoreThreshold: this.faceDetectionConfidence
         }))
         .withFaceLandmarks()
         .withFaceDescriptors()
 
-      // console.log('result', result)
 
       if (result.length === 0) {
         // console.log(`${result.length} faces tracked`)
@@ -161,17 +204,57 @@ export default {
 
         if (result.length > 1) {
           console.log(`${result.length} faces tracked`)
-          console.log('result', JSON.stringify(result))
+          // console.log('result', JSON.stringify(result))
         }
 
-        result
+        if (this.faceDescriptions.length === 0) {
+          this.faceMatcher = new faceapi.FaceMatcher(result)
+        } else {
+          this.faceMatcher = new faceapi.FaceMatcher(this.faceDescriptions)
+        }
+
+        const dims = faceapi.matchDimensions(this.$refs.canvas, this.$refs.video, true)
+
+        const resized = faceapi.resizeResults(result, dims)
+
+        resized
+          .map(this.matchFace)
           .map(this.drawFaceBox)
           .map(this.captureFace)
+          
       }      
     
-      setTimeout(() => {
-        this.startDetector()
-      })
+      // setTimeout(async () => {
+      //   await this.startDetector()
+      // })
+
+      await new Promise(resolve => setTimeout(resolve, 0))
+
+      await this.startDetector()
+
+    },
+    matchFace(faceDescription) {
+
+      const findMatch = this.faceMatcher.findBestMatch(faceDescription.descriptor)
+      const label = findMatch.toString()
+
+      if (this.faceDescriptions.length === 0) {
+        this.faceDescriptions.push(faceDescription)
+
+        return {faceDescription, foundNew: true}
+      } else {
+        if (findMatch.distance > this.faceMatchDistance) {
+          this.faceDescriptions.push(faceDescription)
+          console.log('findMatch new face', findMatch)
+          console.log(this.faceDescriptions.length)
+          return {faceDescription, foundNew: true}
+        } else {
+          // console.log('findMatch', findMatch)
+        }
+      }
+
+
+      return {faceDescription, foundNew: false}
 
     },
     clearFaceBox() {
@@ -180,34 +263,31 @@ export default {
       context2D.clearRect(0, 0, this.$refs.canvas.width, this.$refs.canvas.height)
 
     },
-    drawFaceBox(face) {
-
-      const dims = faceapi.matchDimensions(this.$refs.canvas, this.$refs.video, true)
-
-      const resized = faceapi.resizeResults(face, dims)
-
+    drawFaceBox({faceDescription, foundNew}) {
       if (!this.invisible) {
-        faceapi.draw.drawDetections(this.$refs.canvas, resized)
+        faceapi.draw.drawDetections(this.$refs.canvas, faceDescription)
       }
 
-      return resized
+      return {faceDescription, foundNew}
     },
-    captureFace(face) {
-
+    captureFace({faceDescription, foundNew}) {
+      if (!foundNew) {
+        return
+      }
 
       const newCanvas = document.createElement("canvas")
 
-      newCanvas.width = face.detection.box.width
-      newCanvas.height = face.detection.box.height
+      newCanvas.width = faceDescription.detection.box.width
+      newCanvas.height = faceDescription.detection.box.height
 
       const context2D = newCanvas.getContext('2d')
 
       context2D.drawImage(this.$refs.video, 
-        face.detection.box.x, 
-        face.detection.box.y, 
-        face.detection.box.width, 
-        face.detection.box.height,
-        0,0,face.detection.box.width,face.detection.box.height)
+        faceDescription.detection.box.x, 
+        faceDescription.detection.box.y, 
+        faceDescription.detection.box.width, 
+        faceDescription.detection.box.height,
+        0,0,faceDescription.detection.box.width,faceDescription.detection.box.height)
 
       const base64Img = newCanvas.toDataURL("image/jpeg")
 
