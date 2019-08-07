@@ -8,9 +8,9 @@
         :height="height" 
         :src="source"
         :hidden="invisible"
-        :faceDetectionSize="faceDetectionSize"
-        :faceDetectionConfidence="faceDetectionConfidence"
-        :faceMatchDistance="faceMatchDistance">
+        autoplay
+        playsinline
+        >
       </video>
       <canvas id="overlay" ref="canvas" />
     </div>
