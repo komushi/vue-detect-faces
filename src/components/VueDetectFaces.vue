@@ -84,6 +84,7 @@ export default {
           await this.startCamera()
         } else {
           this.stopCamera()
+          this.clearFaceBox()
         }
       }
     },
@@ -184,6 +185,7 @@ export default {
       //   .withFaceDescriptors()
 
       if (!this.openDetector) {
+        this.clearFaceBox()
         return
       }
 
@@ -259,6 +261,8 @@ export default {
     },
     clearFaceBox() {
       const context2D = this.$refs.canvas.getContext('2d')
+
+      console.log('clearFaceBox', this.$refs.canvas)
 
       context2D.clearRect(0, 0, this.$refs.canvas.width, this.$refs.canvas.height)
 
